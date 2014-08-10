@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+OmegaT-Plugin: true
+
+Name: com.hiohiohio.omegat.plugin.linkbuilder.LinkBuilder
+OmegaT-Plugin: base
