@@ -19,7 +19,7 @@ Installation
 --------------------------------
 * Download a zip file from the above page.
 * Unzip it.
-* Put OmegaT-plugins-LinkBuilder.jar to the plugins directory of OmegaT.
+* Put OmegaT-plugin-LinkBuilder.jar to the plugins directory of OmegaT.
 
 Licensing
 --------------------------------
