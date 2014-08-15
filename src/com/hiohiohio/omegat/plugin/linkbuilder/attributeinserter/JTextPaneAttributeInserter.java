@@ -48,6 +48,8 @@
 // OTHER DEALINGS IN THE SOFTWARE.
 package com.hiohiohio.omegat.plugin.linkbuilder.attributeinserter;
 
+import com.hiohiohio.omegat.plugin.linkbuilder.util.DefaultLogger;
+import com.hiohiohio.omegat.plugin.linkbuilder.util.ILogger;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.event.MouseAdapter;
@@ -70,7 +72,6 @@ import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
-import org.omegat.util.Log;
 
 public class JTextPaneAttributeInserter implements IAttributeInserter {
 
@@ -80,10 +81,18 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
     final static private String ATTR_LINK = "linkbuilder_link";
     final private JTextPane jTextPane;
     final private StyledDocument doc;
+    final private ILogger logger;
 
     public JTextPaneAttributeInserter(JTextPane pane) {
-        jTextPane = pane;
-        doc = pane.getStyledDocument();
+        this.jTextPane = pane;
+        this.doc = pane.getStyledDocument();
+        this.logger = new DefaultLogger();
+    }
+
+    public JTextPaneAttributeInserter(JTextPane pane, ILogger logger) {
+        this.jTextPane = pane;
+        this.doc = pane.getStyledDocument();
+        this.logger = logger;
     }
 
     public void register() {
@@ -151,14 +160,14 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
                                             applyStyle(doc, matcher.start(), matcher.end() - matcher.start(), matcher.group());
                                         }
                                     } catch (BadLocationException ex) {
-                                        Log.log("LinkBuilder: " + JTextPaneAttributeInserter.class.getName() + ex);
+                                        logger.log("LinkBuilder: " + JTextPaneAttributeInserter.class.getName() + ex);
                                     }
                                 }
                             });
                         } catch (InterruptedException ex) {
-                            Log.log(ex.toString());
+                            logger.log(ex.toString());
                         } catch (InvocationTargetException ex) {
-                            Log.log(ex.toString());
+                            logger.log(ex.toString());
                         }
                     }
                 };

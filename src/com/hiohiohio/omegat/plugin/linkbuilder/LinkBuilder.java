@@ -24,6 +24,7 @@ import org.omegat.gui.notes.INotes;
 import org.omegat.util.Log;
 import com.hiohiohio.omegat.plugin.linkbuilder.attributeinserter.IAttributeInserter;
 import com.hiohiohio.omegat.plugin.linkbuilder.attributeinserter.JTextPaneAttributeInserter;
+import com.hiohiohio.omegat.plugin.linkbuilder.util.ILogger;
 
 public class LinkBuilder {
 
@@ -67,12 +68,20 @@ public class LinkBuilder {
                     return;
                 }
 
+                // generate logger for OmegaT
+                ILogger logger = new ILogger() {
+
+                    public void log(String s) {
+                        Log.log(s);
+                    }
+                };
+
                 // register for Notes
-                final IAttributeInserter notesURLInserter = new JTextPaneAttributeInserter((JTextPane) notes);
+                final IAttributeInserter notesURLInserter = new JTextPaneAttributeInserter((JTextPane) notes, logger);
                 notesURLInserter.register();
 
                 // register for Glossary
-                final IAttributeInserter glossaryURLInserter = new JTextPaneAttributeInserter((JTextPane) glossaryTextArea);
+                final IAttributeInserter glossaryURLInserter = new JTextPaneAttributeInserter((JTextPane) glossaryTextArea, logger);
                 glossaryURLInserter.register();
             }
 
