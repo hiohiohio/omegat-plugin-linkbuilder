@@ -1,5 +1,5 @@
 ================================
-LinkBuilder: A plugin for OmegaT
+The LinkBuilder plugin for OmegaT
 ================================
 
 LinkBuilder is a plugin for OmegaT designed to make translation easy.
@@ -24,6 +24,10 @@ Installation
 Licensing
 --------------------------------
 Please see the file called LICENSE.
+
+Other plugins
+--------------------------------
+A list of plugins on http://hiohiohio.github.io/
 
 Acknowledgements
 --------------------------------
