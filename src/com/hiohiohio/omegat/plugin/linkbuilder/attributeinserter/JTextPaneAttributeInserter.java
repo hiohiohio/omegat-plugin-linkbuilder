@@ -54,6 +54,8 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -63,10 +65,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
+import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import javax.swing.text.Element;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
@@ -75,102 +77,178 @@ import javax.swing.text.StyledDocument;
 
 public class JTextPaneAttributeInserter implements IAttributeInserter {
 
-    // Regular Expression for URL validation
-    final static private String REGEX_URL = "(?:(?:https?|ftp):\\/\\/)(?:\\S+(?::\\S*)?@)?(?:(?!(?:10|127)(?:\\.\\d{1,3}){3})(?!(?:169\\.254|192\\.168)(?:\\.\\d{1,3}){2})(?!172\\.(?:1[6-9]|2\\d|3[0-1])(?:\\.\\d{1,3}){2})(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[1-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))(?::\\d{2,5})?(?:\\/[^\\s]*)?";
+    private static final String ATTR_LINK = "linkbuilder_link";
 
-    final static private String ATTR_LINK = "linkbuilder_link";
-    final private JTextPane jTextPane;
-    final private StyledDocument doc;
-    final private ILogger logger;
+    private final JTextPane jTextPane;
+    private final ILogger logger;
 
-    public JTextPaneAttributeInserter(JTextPane pane) {
+    public JTextPaneAttributeInserter(final JTextPane pane) {
         this.jTextPane = pane;
-        this.doc = pane.getStyledDocument();
         this.logger = new DefaultLogger();
     }
 
-    public JTextPaneAttributeInserter(JTextPane pane, ILogger logger) {
+    public JTextPaneAttributeInserter(final JTextPane pane, final ILogger logger) {
         this.jTextPane = pane;
-        this.doc = pane.getStyledDocument();
         this.logger = logger;
     }
 
+    @Override
     public void register() {
-        // Adding mouse listner
-        jTextPane.addMouseListener(new MouseAdapter() {
+        final MouseAdapter mouseAdapter = new AttributeInserterMouseListener(jTextPane);
 
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getButton() == MouseEvent.BUTTON1) {
-                    final Element characterElement = doc.getCharacterElement(jTextPane.viewToModel(e.getPoint()));
-                    final AttributeSet as = characterElement.getAttributes();
-                    final IAttributeAction la = (IAttributeAction) as.getAttribute(ATTR_LINK);
-                    if (la != null) {
-                        la.execute();
-                    }
-                } else {
-                    super.mouseClicked(e);
-                }
-            }
-        });
+        // Adding mouse listner for actions
+        jTextPane.addMouseListener(mouseAdapter);
 
         // settings for mouseover (changing cursor)
-        jTextPane.addMouseMotionListener(new MouseAdapter() {
+        jTextPane.addMouseMotionListener(mouseAdapter);
 
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                final Element characterElement = doc.getCharacterElement(jTextPane.viewToModel(e.getPoint()));
-                final AttributeSet as = characterElement.getAttributes();
-                final IAttributeAction la = (IAttributeAction) as.getAttribute(ATTR_LINK);
-                if (la != null) {
-                    jTextPane.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                } else {
-                    jTextPane.setCursor(Cursor.getDefaultCursor());
+        // Those are the main called points from user's activities.
+        setDocumentFilter(jTextPane, logger);
+
+        jTextPane.addPropertyChangeListener("document", new PropertyChangeListener() {
+
+            public void propertyChange(PropertyChangeEvent evt) {
+                logger.log("document changed event fired: " + evt.getPropertyName());
+                Object source = evt.getSource();
+                if (source instanceof JTextPane) {
+                    setDocumentFilter((JTextPane) source, logger);
                 }
             }
         });
+    }
 
-        // Those are the main called points from user's activities.
-        doc.addDocumentListener(new DocumentListener() {
-            final private ScheduledExecutorService executorService;
-            private Future refreshTask;
-            final private Runnable refreshRun;
-            final private Pattern URLmather;
-            final private MutableAttributeSet URLAttribute;
-            final private AttributeSet defAttribute;
+    private static void setDocumentFilter(final JTextPane textPane, ILogger logger) {
+        final StyledDocument doc = textPane.getStyledDocument();
+        if (doc instanceof AbstractDocument) {
+            final AbstractDocument abstractDocument = (AbstractDocument) doc;
+            abstractDocument.setDocumentFilter(new AttributeInserterDocumentFilter(doc, logger));
+        }
+    }
 
-            // as default constructor
-            {
-                this.executorService = new ScheduledThreadPoolExecutor(1);
-                this.refreshRun = new Runnable() {
-                    public void run() {
-                        try {
-                            SwingUtilities.invokeAndWait(new Runnable() {
+    private static class AttributeInserterMouseListener extends MouseAdapter {
 
-                                public void run() {
-                                    try {
-                                        // clear all attributes
-                                        doc.setCharacterAttributes(0, doc.getLength(), defAttribute, true);
+        private final JTextPane jTextPane;
 
-                                        // URL detection
-                                        final String text = doc.getText(0, doc.getLength());
-                                        final Matcher matcher = URLmather.matcher(text);
-                                        while (matcher.find()) {
-                                            // transforming into Clickable text
-                                            applyStyle(doc, matcher.start(), matcher.end() - matcher.start(), matcher.group());
-                                        }
-                                    } catch (BadLocationException ex) {
-                                        logger.log("LinkBuilder: " + JTextPaneAttributeInserter.class.getName() + ex);
-                                    }
-                                }
-                            });
-                        } catch (InterruptedException ex) {
-                            logger.log(ex.toString());
-                        } catch (InvocationTargetException ex) {
-                            logger.log(ex.toString());
-                        }
-                    }
-                };
+        public AttributeInserterMouseListener(final JTextPane jTextPane) {
+            this.jTextPane = jTextPane;
+        }
+
+        @Override
+        public void mouseClicked(final MouseEvent e) {
+            if (e.getButton() == MouseEvent.BUTTON1) {
+                final StyledDocument doc = jTextPane.getStyledDocument();
+                final Element characterElement = doc.getCharacterElement(jTextPane.viewToModel(e.getPoint()));
+                final AttributeSet as = characterElement.getAttributes();
+                final Object attr = as.getAttribute(ATTR_LINK);
+                if (attr instanceof IAttributeAction) {
+                    final IAttributeAction la = (IAttributeAction) attr;
+                    la.execute();
+                }
+            } else {
+                super.mouseClicked(e);
+            }
+        }
+
+        @Override
+        public void mouseMoved(final MouseEvent e) {
+            final StyledDocument doc = jTextPane.getStyledDocument();
+            final Element characterElement = doc.getCharacterElement(jTextPane.viewToModel(e.getPoint()));
+            final AttributeSet as = characterElement.getAttributes();
+            final Object attr = as.getAttribute(ATTR_LINK);
+            if (attr instanceof IAttributeAction) {
+                jTextPane.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            } else {
+                jTextPane.setCursor(Cursor.getDefaultCursor());
+            }
+        }
+    }
+
+    private static class AttributeInserterDocumentFilter extends DocumentFilter {
+
+        private static final long REFRESH_DELAY = 2;
+
+        private final ScheduledExecutorService executorService;
+        private Future refreshTask;
+        private final Runnable refreshRun;
+
+        private final ILogger logger;
+
+        // as default constructor
+        public AttributeInserterDocumentFilter(final StyledDocument doc, final ILogger logger) {
+            // refresh thread
+            this.executorService = new ScheduledThreadPoolExecutor(1);
+            this.refreshRun = new RefreshRunnable(doc, logger);
+            this.logger = logger;
+        }
+
+        @Override
+        public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
+//            logger.log("insertString offset: " + offset + " fb.doc.length: " + fb.getDocument().getLength() + " text: " + string);
+            super.insertString(fb, offset, string, attr);
+
+            if (attr != null && attr.isDefined(StyleConstants.ComposedTextAttribute)) {
+                // ignore
+            } else {
+                refreshPane(0);
+            }
+        }
+
+        @Override
+        public void remove(FilterBypass fb, int offset, int length) throws BadLocationException {
+//            logger.log("remove offset: " + offset + " length: " + length + " fb.doc.length: " + fb.getDocument().getLength());
+            boolean refresh = true;
+            final AttributeSet attr = ((StyledDocument) fb.getDocument()).getCharacterElement(offset).getAttributes();
+            if (attr != null && attr.isDefined(StyleConstants.ComposedTextAttribute)) {
+                refresh = false;
+            }
+
+            super.remove(fb, offset, length);
+
+            if (refresh && length != 0 && fb.getDocument().getLength() != 0) {
+                refreshPane(REFRESH_DELAY);
+            }
+        }
+
+        @Override
+        public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
+//            logger.log("replace offset: " + offset + " length: " + length + " fb.doc.length: " + fb.getDocument().getLength() + " text: " + text);
+            super.replace(fb, offset, length, text, attrs);
+
+            if (fb.getDocument().getLength() != 0) {
+                refreshPane(REFRESH_DELAY);
+            }
+        }
+
+        private void refreshPane(final long delay) {
+            if (refreshTask != null && !refreshTask.isDone()) {
+//                // previous task doing something
+//                if (refreshTask.cancel(false)) {
+//                    logger.log("refresh REscheduled");
+//                    // postpone the task because of user's actions
+//                    refreshTask = executorService.schedule(refreshRun, delay, TimeUnit.SECONDS);
+//                }
+                return;
+            }
+
+//            logger.log("refresh scheduled");
+            refreshTask = executorService.schedule(refreshRun, delay, TimeUnit.SECONDS);
+        }
+
+        private static class RefreshRunnable implements Runnable {
+
+            // Regular Expression for URL validation
+            private static final String REGEX_URL = "(?:(?:https?|ftp):\\/\\/)(?:\\S+(?::\\S*)?@)?(?:(?!(?:10|127)(?:\\.\\d{1,3}){3})(?!(?:169\\.254|192\\.168)(?:\\.\\d{1,3}){2})(?!172\\.(?:1[6-9]|2\\d|3[0-1])(?:\\.\\d{1,3}){2})(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[1-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))(?::\\d{2,5})?(?:\\/[^\\s]*)?";
+
+            private final StyledDocument doc;
+            private final ILogger logger;
+
+            private final Pattern URLmather;
+            private final MutableAttributeSet URLAttribute;
+            private final AttributeSet defAttribute;
+
+            public RefreshRunnable(final StyledDocument doc, final ILogger logger) {
+                this.doc = doc;
+                this.logger = logger;
 
                 // setting up the URL pattern
                 this.URLmather = Pattern.compile(REGEX_URL, Pattern.CASE_INSENSITIVE);
@@ -183,40 +261,46 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
                 this.defAttribute = new SimpleAttributeSet().copyAttributes();
             }
 
-            private void applyStyle(final StyledDocument targetDoc, final int offset, final int length, final String target) {
+            public void run() {
+                try {
+                    SwingUtilities.invokeAndWait(new Runnable() {
+
+                        public void run() {
+                            final int docLength = doc.getLength();
+                            if (docLength != 0) {
+                                try {
+//                                    logger.log("Refreshed");
+                                    // clear all attributes
+                                    doc.setCharacterAttributes(0, docLength, defAttribute, true);
+
+                                    // URL detection
+                                    final String text = doc.getText(0, docLength);
+                                    final Matcher matcher = URLmather.matcher(text);
+                                    while (matcher.find()) {
+                                        final int offset = matcher.start();
+                                        final int targetLength = matcher.end() - offset;
+                                        // transforming into Clickable text
+                                        applyStyle(URLAttribute, doc, offset, targetLength, matcher.group());
+                                    }
+
+                                } catch (BadLocationException ex) {
+                                    logger.log("LinkBuilder: " + JTextPaneAttributeInserter.class.getName() + ex);
+                                }
+                            }
+                        }
+                    });
+                } catch (InterruptedException ex) {
+                    logger.log(ex.toString());
+                } catch (InvocationTargetException ex) {
+                    logger.log(ex.toString());
+                }
+            }
+
+            private static void applyStyle(final MutableAttributeSet URLAttribute, final StyledDocument targetDoc, final int offset, final int length, final String target) {
                 URLAttribute.addAttribute(ATTR_LINK, new BrowserLaunchAction(target));
                 targetDoc.setCharacterAttributes(offset, length, URLAttribute.copyAttributes(), true);
                 URLAttribute.removeAttribute(ATTR_LINK);
             }
-
-            public void insertUpdate(DocumentEvent e) {
-                // this method should be called from Swing thread.
-                refreshPane();
-            }
-
-            public void removeUpdate(DocumentEvent e) {
-                // this method should be called from Swing thread.
-                refreshPane();
-            }
-
-            public void changedUpdate(DocumentEvent e) {
-                // this method should be called from Swing thread.
-                refreshPane();
-            }
-
-            private void refreshPane() {
-                // this method should be called from Swing thread.
-                if (refreshTask != null && !refreshTask.isDone()) {
-                    // previous task doing something
-//                    if (refreshTask.cancel(false)) {
-//                        // postpone the task because of user's actions
-//                        refreshTask = executorService.schedule(refreshRun, 3, TimeUnit.SECONDS);
-//                    }
-                    return;
-                }
-
-                refreshTask = executorService.schedule(refreshRun, 3, TimeUnit.SECONDS);
-            }
-        });
+        }
     }
 }
