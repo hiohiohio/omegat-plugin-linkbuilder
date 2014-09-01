@@ -23,12 +23,13 @@ Installation
 
 Licensing
 --------------------------------
+Apache License, Version 2.0
 Please see the file called LICENSE.
 
 Other plugins
 --------------------------------
-A list of plugins on http://hiohiohio.github.io/
+A list of plugins on [https://hiohiohio.github.io/](https://hiohiohio.github.io/)
 
 Acknowledgements
 --------------------------------
-The OmegaT project (http://www.omegat.org/) and all contributors.
+The OmegaT project ([http://www.omegat.org/](http://www.omegat.org/)) and all contributors.
