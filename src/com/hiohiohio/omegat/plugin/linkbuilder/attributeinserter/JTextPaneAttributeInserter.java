@@ -269,9 +269,12 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
                             final int docLength = doc.getLength();
                             if (docLength != 0) {
                                 try {
-//                                    logger.log("Refreshed");
-                                    // clear all attributes
-                                    doc.setCharacterAttributes(0, docLength, defAttribute, true);
+                                    // clear attributes
+                                    for (int i = 0; i < docLength; ++i) {
+                                        if (doc.getCharacterElement(i).getAttributes().containsAttributes(URLAttribute)) {
+                                            doc.setCharacterAttributes(i, 1, defAttribute, true);
+                                        }
+                                    }
 
                                     // URL detection
                                     final String text = doc.getText(0, docLength);
