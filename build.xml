@@ -1,6 +1,6 @@
-<project name="LinkBuilder plugin for OmegaT" default="dist">
+<project name="LinkBuilder plugin for OmegaT" default="jar">
     
-    <property name="version" value="1.0.1" />
+    <property name="version" value="1.0.2" />
     <property name="javac.source" value="1.5" />
     <property name="javac.target" value="1.5" />
     <property name="encoding" value="UTF-8"/>
@@ -20,7 +20,6 @@
         <javac destdir="build/classes" source="${javac.source}" target="${javac.target}" encoding="${encoding}">
             <src path="src" />
             <classpath>
-                <fileset dir="lib" includes="**/*.jar" />
                 <pathelement path="build/stub-classes" />
             </classpath>
         </javac>
