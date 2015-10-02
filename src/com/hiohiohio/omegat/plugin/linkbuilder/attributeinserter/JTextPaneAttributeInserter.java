@@ -245,6 +245,7 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
             private final Pattern URLmather;
             private final MutableAttributeSet URLAttribute;
             private final AttributeSet defAttribute;
+            private final AttributeSet boldAttribute;
 
             public RefreshRunnable(final StyledDocument doc, final ILogger logger) {
                 this.doc = doc;
@@ -259,6 +260,10 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
                 StyleConstants.setForeground(this.URLAttribute, Color.blue);
 
                 this.defAttribute = new SimpleAttributeSet().copyAttributes();
+
+                final MutableAttributeSet tmp = new SimpleAttributeSet();
+                StyleConstants.setBold(tmp, true);
+                this.boldAttribute = tmp.copyAttributes();
             }
 
             public void run() {
@@ -282,8 +287,15 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
                                     while (matcher.find()) {
                                         final int offset = matcher.start();
                                         final int targetLength = matcher.end() - offset;
-                                        // transforming into Clickable text
-                                        applyStyle(URLAttribute, doc, offset, targetLength, matcher.group());
+
+                                        if (!doc.getCharacterElement(offset).getAttributes().containsAttributes(boldAttribute)) {
+                                            // transforming into Clickable text
+                                            applyStyle(URLAttribute, doc, offset, targetLength, matcher.group());
+                                        } else {
+                                            // transforming into Clickable text
+                                            applyStyle(URLAttribute, doc, offset, targetLength, matcher.group());
+                                            doc.setCharacterAttributes(offset, targetLength, boldAttribute.copyAttributes(), false);
+                                        }
                                     }
 
                                 } catch (BadLocationException ex) {
