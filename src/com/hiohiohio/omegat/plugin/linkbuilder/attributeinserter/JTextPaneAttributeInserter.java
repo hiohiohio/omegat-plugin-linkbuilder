@@ -108,7 +108,7 @@ public class JTextPaneAttributeInserter implements IAttributeInserter {
         jTextPane.addPropertyChangeListener("document", new PropertyChangeListener() {
 
             public void propertyChange(PropertyChangeEvent evt) {
-                logger.log("document changed event fired: " + evt.getPropertyName());
+//                logger.log("document changed event fired: " + evt.getPropertyName());
                 Object source = evt.getSource();
                 if (source instanceof JTextPane) {
                     setDocumentFilter((JTextPane) source, logger);
