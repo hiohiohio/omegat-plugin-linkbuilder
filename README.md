@@ -23,7 +23,6 @@ Installation
 
 Licensing
 --------------------------------
-Apache License, Version 2.0
 Please see the file called LICENSE.
 
 Other plugins
